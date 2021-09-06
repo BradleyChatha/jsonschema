@@ -1,0 +1,16 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/jsonschema
+jsonschema.so
+jsonschema.dylib
+jsonschema.dll
+jsonschema.a
+jsonschema.lib
+jsonschema-test-*
+*.exe
+*.o
+*.obj
+*.lst
+*.dll

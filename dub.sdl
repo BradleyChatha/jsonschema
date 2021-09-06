@@ -1,0 +1,15 @@
+name "jsonschema"
+description "An implementation of JSON Schema for D"
+authors "Bradley Chatha"
+copyright "Copyright © 2021, Bradley Chatha"
+license "MIT"
+targetType "library"
+
+configuration "default" {
+    versions "dummy"
+}
+
+configuration "subschema" {
+    versions "SupportSubSchemas"
+    dependency "vibe-d:http" version="~>0.9.3" // Required for downloading shizz
+}
