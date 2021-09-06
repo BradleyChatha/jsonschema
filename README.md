@@ -11,6 +11,8 @@ This also allows for any JSON backend to be used, currently one for `std.json` i
 
 # Limitations
 
+This library isn't able to provide terribly great error messages. The first reason is due to laziness, because I could technically keep track of certain things to make a decent error message. The second reason is most parsers discard line information, especially for JSON, so I can't exactly do much about that.
+
 This is not fully compliant yet, as it only implements the easy stuff:
 
 - [x] `type` keyword, and all types
