@@ -13,34 +13,34 @@ This also allows for any JSON backend to be used, currently one for `std.json` i
 
 This is not fully compliant yet, as it only implements the easy stuff:
 
-[x] `type` keyword, and all types
-[x] `string`, `length`, `pattern`.
-[ ] `format`
-[x] `integer`, `number`, `multipleOf`
-[ ] `range` (draft 4 adds an annoying requirement I need to think about, basically whether to hard code this one or not)
-[x] `object`, `properties`, `patternProperties`, `additionalProperties`, `required`, `propertyName`, `minProperties`, `maxProperties`
-[x] `array`, `items`, `prefixItems`, `additionalItems`, `minItems`, `maxItems`
-[ ] `uniqueItems` (i'm lazy ;p)
-[ ] `contains`
-[x] `boolean`
-[x] `null`
-[x] `title`, `description`
-[ ] `default`
-[ ] `examples`
-[ ] `deprecated`
-[ ] `readOnly`
-[ ] `writeOnly`
-[x] `enum`
-[ ] `const`
-[ ] `contentMediaType`, `contentEncoding`
-[ ] `allOf`, `anyOf`, `oneOf`, `not`
-[ ] `dependentRequired`, `dependentSchemas`, `if-then-else`
-[ ] `JSON pointers`
-[ ] `$anchor`
-[ ] `$id`
-[ ] `$ref`
-[ ] `$defs`
-[ ] Sub-Schemas
+- [x] `type` keyword, and all types
+- [x] `string`, `length`, `pattern`.
+- [ ] `format`
+- [x] `integer`, `number`, `multipleOf`
+- [ ] `range` (draft 4 adds an annoying requirement I need to think about, basically whether to hard code this one or not)
+- [x] `object`, `properties`, `patternProperties`, `additionalProperties`, `required`, `propertyName`, `minProperties`, `maxProperties`
+- [x] `array`, `items`, `prefixItems`, `additionalItems`, `minItems`, `maxItems`
+- [ ] `uniqueItems` (i'm lazy ;p)
+- [ ] `contains`
+- [x] `boolean`
+- [x] `null`
+- [x] `title`, `description`
+- [ ] `default`
+- [ ] `examples`
+- [ ] `deprecated`
+- [ ] `readOnly`
+- [ ] `writeOnly`
+- [x] `enum`
+- [ ] `const`
+- [ ] `contentMediaType`, `contentEncoding`
+- [ ] `allOf`, `anyOf`, `oneOf`, `not`
+- [ ] `dependentRequired`, `dependentSchemas`, `if-then-else`
+- [ ] `JSON pointers`
+- [ ] `$anchor`
+- [ ] `$id`
+- [ ] `$ref`
+- [ ] `$defs`
+- [ ] Sub-Schemas
 
 # Basic usage
 
