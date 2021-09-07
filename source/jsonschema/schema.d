@@ -99,7 +99,7 @@ struct JsonSchema(
                 throw new Exception("Expected value to be an object or a boolean, not: "~vType.to!string);
 
             auto obj = Adapter.getObject(itemValue);
-            Adapter.each(obj, (objKey, value)
+            Adapter.objectEach(obj, (objKey, value)
             {
                 Switch: switch(objKey)
                 {
@@ -107,7 +107,7 @@ struct JsonSchema(
                         const typeType = Adapter.getType(value);
                         if(typeType == JsonSchemaType.array)
                         {
-                            Adapter.each(Adapter.getArray(value), (i, v) {
+                            Adapter.arrayEach(Adapter.getArray(value), (i, v) {
                                 enforce(Adapter.getType(v) == JsonSchemaType.string_, "Expected value #%s in 'type' array to be a string, not: %s".format(
                                     i, Adapter.getType(v)
                                 ));
@@ -132,7 +132,7 @@ struct JsonSchema(
 
                     case "properties":
                         enforce(Adapter.getType(value) == JsonSchemaType.object, "Expected the 'properties' property to be an object.");
-                        Adapter.each(Adapter.getObject(value), (k, v){
+                        Adapter.objectEach(Adapter.getObject(value), (k, v){
                             enforce(Adapter.getType(v) == JsonSchemaType.object, "Expected any subproperty of the 'properties' attribute to contain an object as a value.");
                             item.properties[k] = Property(k, parseItem(v));
                         });
@@ -140,7 +140,7 @@ struct JsonSchema(
 
                     case "patternProperties":
                         enforce(Adapter.getType(value) == JsonSchemaType.object, "Expected the 'patternProperties' property to be an object.");
-                        Adapter.each(Adapter.getObject(value), (k, v){
+                        Adapter.objectEach(Adapter.getObject(value), (k, v){
                             enforce(Adapter.getType(v) == JsonSchemaType.object, "Expected any subproperty of the 'patternProperties' attribute to contain an object as a value.");
                             item.patternProperties ~= Property(k, parseItem(v));
                         });
@@ -161,7 +161,7 @@ struct JsonSchema(
                     case "enum":
                         enforce(Adapter.getType(value) == JsonSchemaType.array, "Expected the 'enum' property to be an array.");
                         auto valueAsArray = Adapter.getArray(value);
-                        Adapter.each(valueAsArray, (i, v)
+                        Adapter.arrayEach(valueAsArray, (i, v)
                         {
                             item.enumValues ~= v;
                         });
@@ -174,7 +174,7 @@ struct JsonSchema(
 
                     case "prefixItems":
                         enforce(Adapter.getType(value) == JsonSchemaType.array, "Expected the 'prefixItems' property to be an array.");
-                        Adapter.each(Adapter.getArray(value), (i, v)
+                        Adapter.arrayEach(Adapter.getArray(value), (i, v)
                         {
                             item.prefixItems ~= parseItem(v);
                         });
@@ -182,7 +182,7 @@ struct JsonSchema(
 
                     case "required":
                         enforce(Adapter.getType(value) == JsonSchemaType.array, "Expected the 'requiredProperties' property to be an array.");
-                        Adapter.each(Adapter.getArray(value), (i, v)
+                        Adapter.arrayEach(Adapter.getArray(value), (i, v)
                         {
                             item.requiredProperties ~= Adapter.getString(v);
                         });
@@ -268,7 +268,7 @@ string[] validate(ValueAdapter, Schema)(const Schema schema, ValueAdapter.ValueT
             case object:
                 string[] found;
                 auto vAsObj = ValueAdapter.getObject(v);
-                ValueAdapter.each(vAsObj, (key, value)
+                ValueAdapter.objectEach(vAsObj, (key, value)
                 {
                     if(item.propertyNames != Regex!char.init && !matchFirst(key, item.propertyNames))
                     {
@@ -308,7 +308,7 @@ string[] validate(ValueAdapter, Schema)(const Schema schema, ValueAdapter.ValueT
                     constraint.match!(
                         (c)
                         {
-                            if(auto error = c.validate!ValueAdapter(vAsObj))
+                            if(auto error = c.validateObject!ValueAdapter(vAsObj))
                                 errors ~= error;
                         }
                     );
@@ -317,7 +317,7 @@ string[] validate(ValueAdapter, Schema)(const Schema schema, ValueAdapter.ValueT
 
             case array:
                 auto vAsArray = ValueAdapter.getArray(v);
-                ValueAdapter.each(vAsArray, (i, value)
+                ValueAdapter.arrayEach(vAsArray, (i, value)
                 {
                     if(i < item.prefixItems.length)
                         validateAgainst(item.prefixItems[i], value);
@@ -330,7 +330,7 @@ string[] validate(ValueAdapter, Schema)(const Schema schema, ValueAdapter.ValueT
                     constraint.match!(
                         (c)
                         {
-                            if(auto error = c.validate!ValueAdapter(vAsArray))
+                            if(auto error = c.validateArray!ValueAdapter(vAsArray))
                                 errors ~= error;
                         }
                     );
@@ -346,7 +346,7 @@ string[] validate(ValueAdapter, Schema)(const Schema schema, ValueAdapter.ValueT
                     constraint.match!(
                         (c)
                         {
-                            if(auto error = c.validate!ValueAdapter(v))
+                            if(auto error = c.validateValue!ValueAdapter(v))
                                 errors ~= error;
                         }
                     );
@@ -406,7 +406,18 @@ alias JsonSchemaDefaultConstraints = SchemaGroup!(
 );
 alias JsonSchemaStdDefault = JsonSchema!(StdJsonAdapter, JsonSchemaDefaultConstraints);
 
-version(unittest) import std.json : parseJSON;
+version(unittest) 
+{
+    import std.json : parseJSON;
+    import sdlite;
+
+    SDLNode parseSdlang(string code)
+    {
+        SDLNode root;
+        parseSDLDocument!(n => root.children ~= n)(code, null);
+        return root;
+    }
+}
 
 unittest
 {
@@ -435,6 +446,25 @@ unittest
         "Pluto": 1.25e22
     }
     `)).length == 0);
+
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        key "value"
+        another_key "another_value"
+    `)).length == 0);
+
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        Sun 1.9891
+        Jupiter 1.8986
+        Saturn 5.6846
+        Neptune 10.243
+        Uranus 8.6810
+        Earth 5.9736
+        Venus 4.8685
+        Mars 6.4185
+        Mercury 3.3022
+        Moon 7.349
+        Pluto 1.25
+    `)).length == 0);
 }
 
 unittest
@@ -450,6 +480,7 @@ unittest
         }
     }
     `));
+
     assert(validate!StdJsonAdapter(schema, parseJSON(`
         { "number": 1600, "street_name": "Pennsylvania", "street_type": "Avenue" }
     `)).length == 0);
@@ -467,6 +498,35 @@ unittest
     `)).length == 0);
     assert(validate!StdJsonAdapter(schema, parseJSON(`
         { "number": 1600, "street_name": "Pennsylvania", "street_type": "Avenueeee" }
+    `)).length > 0);
+
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        number 1600
+        street_name "Pennsylvania"
+        street_type "Avenue"
+    `)).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        number "1600"
+        street_name "Pennsylvania"
+        street_type "Avenue"
+    `)).length > 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        number 1600
+        street_name "Pennsylvania"
+    `)).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        
+    `)).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        number 1600
+        street_name "Pennsylvania"
+        street_type "Avenue"
+        direction "NW"
+    `)).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        number 1600
+        street_name "Pennsylvania"
+        street_type "Avenueeee"
     `)).length > 0);
 }
 
@@ -497,6 +557,22 @@ unittest
     assert(validate!StdJsonAdapter(schema, parseJSON(`
         { "I_42": "This is a string" }
     `)).length > 0);
+
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        S_25 "This is a string"
+    `)).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        I_0 42
+    `)).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        keyword "value"
+    `)).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        S_0 42
+    `)).length > 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        I_42 "This is a string"
+    `)).length > 0);
 }
 
 unittest
@@ -518,6 +594,18 @@ unittest
     `)).length == 0);
     assert(validate!StdJsonAdapter(schema, parseJSON(`
         { "number": 1600, "street_name": "Pennsylvania", "street_type": "Avenue", "direction": "NW" }
+    `)).length > 0);
+
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        number 1600
+        street_name "Pennsylvania"
+        street_type "Avenue"
+    `)).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        number 1600
+        street_name "Pennsylvania"
+        street_type "Avenue"
+        direction "NW"
     `)).length > 0);
 }
 
@@ -543,6 +631,24 @@ unittest
     `)).length == 0);
     assert(validate!StdJsonAdapter(schema, parseJSON(`
         { "number": 1600, "street_name": "Pennsylvania", "street_type": "Avenue", "office_number": 201 }
+    `)).length > 0);
+
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        number 1600
+        street_name "Pennsylvania"
+        street_type "Avenue"
+    `)).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        number 1600
+        street_name "Pennsylvania"
+        street_type "Avenue"
+        direction "NW"
+    `)).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        number 1600
+        street_name "Pennsylvania"
+        street_type "Avenue"
+        office_number 201
     `)).length > 0);
 }
 
@@ -570,6 +676,16 @@ unittest
     `)).length == 0);
     assert(validate!StdJsonAdapter(schema, parseJSON(`
         { "keyword": 42 }
+    `)).length > 0);
+
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        builtin 42
+    `)).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        keyword "value"
+    `)).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        keyword 42
     `)).length > 0);
 }
 
@@ -614,6 +730,26 @@ unittest
             "address": "Henley Street, Stratford-upon-Avon, Warwickshire, England",
             "email": null
         }
+    `)).length > 0);
+    
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        name "William Shakespeare"
+        email "bill@stratford-upon-avon.co.uk"
+    `)).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        name "William Shakespeare"
+        email "bill@stratford-upon-avon.co.uk"
+        address "Henley Street, Stratford-upon-Avon, Warwickshire, England"
+        authorship "in question"
+    `)).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        name "William Shakespeare"
+        address "Henley Street, Stratford-upon-Avon, Warwickshire, England"
+    `)).length > 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        name "William Shakespeare"
+        email null
+        address "Henley Street, Stratford-upon-Avon, Warwickshire, England"
     `)).length > 0);
 }
 
@@ -729,6 +865,15 @@ unittest
     assert(validate!StdJsonAdapter(schema, parseJSON(`
         {"Not": "an array"}
     `)).length > 0);
+
+    // Root is always an object no matter what, unlike in JSON.
+    // So here we have to get the first child
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        1 2 3 4 5
+    `).children[0]).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        3 "different" "types of values" // also we can't completely map objects as values :(
+    `).children[0]).length == 0);
 }
 
 unittest
@@ -751,6 +896,13 @@ unittest
     assert(validate!StdJsonAdapter(schema, parseJSON(`
         [1, 2, "3", 4, 5]
     `)).length > 0);
+
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        1 2 3 4 5
+    `).children[0]).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        1 2 "3" 4 5
+    `).children[0]).length > 0);
 }
 
 unittest
@@ -782,6 +934,22 @@ unittest
     assert(validate!StdJsonAdapter(schema, parseJSON(`
         [24, "Sussex", "Drive"]
     `)).length > 0);
+
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        1600 "Pennsylvania" "Avenue" "NW"
+    `).children[0]).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        10 "Downing" "Street"
+    `).children[0]).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        1600 "Pennsylvania" "Avenue" "NW" "Washington"
+    `).children[0]).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        "Palais de l'Élysée"
+    `).children[0]).length > 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        24 "Sussex" "Drive"
+    `).children[0]).length > 0);
 }
 
 unittest
@@ -808,4 +976,14 @@ unittest
     assert(validate!StdJsonAdapter(schema, parseJSON(`
         [1600, "Pennsylvania", "Avenue", "NW", "Washington"]
     `)).length > 0);
+
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        1600 "Pennsylvania" "Avenue" "NW"
+    `).children[0]).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        1600 "Pennsylvania" "Avenue"
+    `).children[0]).length == 0);
+    assert(validate!SdliteAdapter(schema, parseSdlang(`
+        1600 "Pennsylvania" "Avenue" "NW" "Washington"
+    `).children[0]).length > 0);
 }
