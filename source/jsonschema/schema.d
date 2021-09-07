@@ -181,7 +181,7 @@ struct JsonSchema(
                         break;
 
                     case "required":
-                        enforce(Adapter.getType(value) == JsonSchemaType.array, "Expected the 'requiredProperties' property to be an array.");
+                        enforce(Adapter.getType(value) == JsonSchemaType.array, "Expected the 'required' property to be an array.");
                         Adapter.arrayEach(Adapter.getArray(value), (i, v)
                         {
                             item.requiredProperties ~= Adapter.getString(v);
