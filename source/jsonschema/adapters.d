@@ -1,28 +1,16 @@
 module jsonschema.adapters;
 
-import std.json, jsonschema.schema, std.conv, std.exception;
+import std, jsonschema, sdlite;
 
 struct StdJsonAdapter
 {
-    alias ObjectType = JSONValue[string];
-    alias ArrayType  = JSONValue[];
-    alias ValueType  = JSONValue;
-
     static:
 
-    JsonSchemaType getType(ObjectType)
-    {
-        return JsonSchemaType.object;
-    }
+    alias AggregateType = JSONValue;
 
-    JsonSchemaType getType(ArrayType)
+    JsonSchemaType getType(AggregateType value)
     {
-        return JsonSchemaType.array;
-    }
-
-    JsonSchemaType getType(ValueType v)
-    {
-        final switch(v.type) with(JSONType)
+        final switch(value.type) with(JSONType)
         {
             case null_: return JsonSchemaType.null_;
             case string: return JsonSchemaType.string_;
@@ -36,202 +24,71 @@ struct StdJsonAdapter
         }
     }
 
-    bool isNull(T)(T value)
-    {
-        static if(is(T == ValueType))
-            return value.isNull;
-        else
-            return false;
-    }
+    bool isNull(AggregateType value) { return value.isNull; }
+    string getString(AggregateType value) { return value.str; }
+    long getInteger(AggregateType value) { return value.get!ulong; }
+    double getNumber(AggregateType value) { return value.get!double; }
+    bool getBoolean(AggregateType value) { return value.get!bool; }
 
-    string getString(ValueType v)
-    {
-        return v.str;
-    }
+    AggregateType getArrayValue(AggregateType value, size_t index) { return value.array[index]; }
+    AggregateType getObjectProperty(AggregateType value, string index) { return value.object[index]; }
 
-    double getNumber(ValueType v)
+    void eachArrayValue(AggregateType value, void delegate(size_t, AggregateType) handler)
     {
-        if(v.type == JSONType.integer) return v.integer.to!double;
-        else if(v.type == JSONType.uinteger) return v.uinteger.to!double;
-        else if(v.type == JSONType.float_) return v.floating.to!double;
-        else throw new Exception("Value is not numerical.");
-    }
-
-    ArrayType getArray(ValueType v)
-    {
-        return v.array;
-    }
-
-    ObjectType getObject(ValueType v)
-    {
-        return v.object;
-    }
-
-    bool getBoolean(ValueType v)
-    {
-        if(v.type == JSONType.true_) return true;
-        else if(v.type == JSONType.false_) return false;
-        else throw new Exception("Value is not a boolean.");
-    }
-
-    bool getObjectValue(ObjectType obj, string name, out ValueType value)
-    {
-        scope ptr = (name in obj);
-        if(!ptr)
-            return false;
-        value = *ptr;
-        return true;
-    }
-
-    ValueType getArrayValue(ArrayType array, size_t index)
-    {
-        return array[index];
-    }
-
-    size_t getArrayLength(ArrayType array)
-    {
-        return array.length;
-    }
-
-    size_t getObjectLength(ObjectType obj)
-    {
-        return obj.length;
-    }
-
-    void objectEach(ObjectType obj, void delegate(string, ValueType) handler)
-    {
-        foreach(k, v; obj)
-            handler(k, v);
-    }
-
-    void arrayEach(ArrayType array, void delegate(size_t, ValueType) handler)
-    {
-        foreach(i, v; array)
+        foreach(i, v; value.array)
             handler(i, v);
+    }
+
+    void eachObjectProperty(AggregateType value, void delegate(string, AggregateType) handler)
+    {
+        foreach(k, v; value.object)
+            handler(k, v);
     }
 }
 
 struct SdliteAdapter
 {
-    import sdlite;
-
-    alias ObjectType = SDLNode;
-    alias ArrayType  = SDLNode;
-    alias ValueType  = SDLNode;
-
     static:
 
-    JsonSchemaType getType(ArrayType v)
+    alias AggregateType = SDLNode;
+
+    JsonSchemaType getType(AggregateType value)
     {
-        if(v.children.length == 0 && v.values.length)
+        JsonSchemaType type;
+        if(value.values.length)
+            type |= JsonSchemaType.array;
+        if(value.children.length)
+            type |= JsonSchemaType.object;
+
+        if(value.values.length == 1)
         {
-            if(v.values.length == 1)
+            final switch(value.values[0].kind) with(SDLValue.Kind)
             {
-                final switch(v.values[0].kind) with(SDLValue.Kind)
-                {
-                    case null_:     return JsonSchemaType.null_;
-                    case text:      return JsonSchemaType.string_;
-                    case binary:    throw new Exception("Cannot map SDLang's `binary` type into a JSON type.");
-                    case int_:      return JsonSchemaType.number | JsonSchemaType.integer;
-                    case long_:     return JsonSchemaType.number | JsonSchemaType.integer;
-                    case decimal:   return JsonSchemaType.number;
-                    case float_:    return JsonSchemaType.number;
-                    case double_:   return JsonSchemaType.number;
-                    case bool_:     return JsonSchemaType.boolean;
-
-                    // TODO: Could probably auto-convert these into strings at the very least.
-                    case dateTime:  throw new Exception("Cannot map SDLang's `dateTime` type into a JSON type.");
-                    case date:      throw new Exception("Cannot map SDLang's `date` type into a JSON type.");
-                    case duration:  throw new Exception("Cannot map SDLang's `duration` type into a JSON type.");
-                }
-            }
-
-            return JsonSchemaType.array;
-        }
-        else if(v.children.length && v.values.length == 0)
-            return JsonSchemaType.object;
-        else if (v.children.length == 0 && v.values.length == 0)
-            return JsonSchemaType.object; // Treat it as an empty object
-        else
-            throw new Exception("Cannot map an SDLNode that has both values and children into a JSON type.");
-    }
-
-    bool isNull(T)(T value)
-    {
-        static if(is(T == ValueType))
-            return value.isNull;
-        else
-            return false;
-    }
-
-    string getString(ValueType v)
-    {
-        return v.values[0].textValue;
-    }
-
-    double getNumber(ValueType v)
-    {
-        if(v.values[0].kind == SDLValue.Kind.int_) return v.values[0].intValue.to!double;
-        else if(v.values[0].kind == SDLValue.Kind.long_) return v.values[0].longValue.to!double;
-        else if(v.values[0].kind == SDLValue.Kind.float_) return v.values[0].floatValue.to!double;
-        else if(v.values[0].kind == SDLValue.Kind.double_) return v.values[0].doubleValue.to!double;
-        else throw new Exception("Value is not numerical.");
-    }
-
-    ArrayType getArray(ValueType v)
-    {
-        return v;
-    }
-
-    ObjectType getObject(ValueType v)
-    {
-        enforce(v.attributes.length == 0, "Cannot map attributes into JSON Schema.");
-        return v;
-    }
-
-    bool getBoolean(ValueType v)
-    {
-        return v.values[0].boolValue;
-    }
-
-    bool getObjectValue(ObjectType obj, string name, out ValueType value)
-    {
-        foreach(child; obj.children)
-        {
-            if(child.qualifiedName == name)
-            {
-                value = child;
-                return true;
+                case null_:     type |= JsonSchemaType.null_; break;
+                case text:      type |= JsonSchemaType.string_; break;
+                case binary:    throw new Exception("binary is not supported, at least for now.");
+                case int_:      type |= JsonSchemaType.integer | JsonSchemaType.number; break;
+                case long_:     type |= JsonSchemaType.integer | JsonSchemaType.number; break;
+                case decimal:   type |= JsonSchemaType.number; break;
+                case float_:    type |= JsonSchemaType.number; break;
+                case double_:   type |= JsonSchemaType.number; break;
+                case bool_:     type |= JsonSchemaType.boolean; break;
+                case dateTime:  throw new Exception("dateTime is not supported, at least for now");
+                case date:      throw new Exception("date is not supported, at least for now");
+                case duration:  throw new Exception("duration is not supported, at least for now");
             }
         }
 
-        return false;
+        return type;
     }
 
-    ValueType getArrayValue(ArrayType array, size_t index)
-    {
-        return SDLNode("__value", [array.values[index]]);
-    }
+    bool isNull(AggregateType value) { return value.values[0].isNull; }
+    string getString(AggregateType value) { return value.values[0].textValue; }
+    long getInteger(AggregateType value) { return value.values[0].isInt ? value.values[0].intValue : value.values[0].longValue; }
+    double getNumber(AggregateType value) { return value.values[0].isFloat ? value.values[0].floatValue : value.values[0].doubleValue; }
+    bool getBoolean(AggregateType value) { return value.values[0].boolValue; }
 
-    size_t getArrayLength(ArrayType array)
-    {
-        return array.values.length;
-    }
-
-    size_t getObjectLength(ObjectType obj)
-    {
-        return obj.children.length;
-    }
-
-    void objectEach(ObjectType obj, void delegate(string, ValueType) handler)
-    {
-        foreach(v; obj.children)
-            handler(v.qualifiedName, v);
-    }
-
-    void arrayEach(ArrayType array, void delegate(size_t, ValueType) handler)
-    {
-        foreach(i, v; array.values)
-            handler(i, SDLNode("__value", [v]));
-    }
+    AggregateType getArrayValue(AggregateType value, size_t index) { return SDLNode("__value", [value.values[index]]); }
+    AggregateType getObjectProperty(AggregateType value, string index) { return value.children.filter!(c => c.qualifiedName == index).front; }
+    AggregateType getObjectAttribute(AggregateType value, string index) { return SDLNode("__value", [value.getAttribute(index)]); }
 }
